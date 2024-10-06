@@ -48,11 +48,11 @@ class OfflineVLLMClient:
             results = self.llm.generate(
                 formatted_prompts, SamplingParams(max_tokens=self.max_tokens)
             )
-            results = [output.outputs[0].text for output in results]
+            texts = [output.outputs[0].text for output in results]
             try:
-                for history, result in zip(requests, results):
+                for history, text in zip(requests, texts):
                     self.rater.post(
-                        Response(id=history.id, payload=result, finished=True)
+                        Response(id=history.id, payload=text, finished=True)
                     )
             except RaterTimeLimitExceeded:
                 break
