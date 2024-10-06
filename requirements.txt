@@ -1,0 +1,6 @@
+datasets==2.20.0
+openai==1.51.0
+Requests==2.32.3
+tiktoken==0.7.0
+transformers==4.43.3
+vllm==0.5.3.post1 # double check the version
