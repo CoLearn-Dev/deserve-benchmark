@@ -6,6 +6,8 @@ from typing import Any, Optional
 import tiktoken
 from transformers import AutoTokenizer  # type: ignore
 
+from src.workload.utils import Workload
+
 llama3_tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-70B")
 openai_tokenizer = tiktoken.encoding_for_model("gpt-3.5-turbo")
 
@@ -21,7 +23,7 @@ class RaterTimeLimitExceeded(Exception):
 @dataclass
 class Request:
     id: int
-    history: list[dict[str, str]]
+    history: str
 
 
 @dataclass
@@ -79,7 +81,7 @@ class BufferedResponses:
 
 
 class Rater:
-    def __init__(self, workload: list[list[dict[str, str]]], time_limit: float):
+    def __init__(self, workload: Workload, time_limit: int):
         self.workload = workload
         self.ptr = 0
         self.time_limit = time_limit
@@ -95,20 +97,17 @@ class Rater:
     def get(self, size: int) -> list[Request]:
         if self.time_first_get is None:
             self.time_first_get = datetime.datetime.now()
-        if self.ptr >= len(self.workload):
-            return []
-        last = min(self.ptr + size, len(self.workload))
-        ret = self.workload[self.ptr : last]
-        self.ptr = last
+        texts = self.workload.get(self.ptr, size)
+        self.ptr += len(texts)
         return [
             Request(id=id, history=history)
-            for id, history in enumerate(ret, start=self.ptr)
+            for id, history in enumerate(texts, start=self.ptr - len(texts))
         ]
 
     def post(self, response: Response) -> None:
-        now = datetime.datetime.now()
         if self.time_first_get is None:
             raise RaterRuntimeError("First get must be called before post")
+        now = datetime.datetime.now()
         self.time_last_post = now
         if now - self.time_first_get > datetime.timedelta(seconds=self.time_limit):
             raise RaterTimeLimitExceeded("Time limit exceeded")
@@ -133,14 +132,25 @@ class Rater:
                 self.post_finished_total += 1
 
     def dump(self) -> dict[str, Any]:
+        time_first_get = (
+            self.time_first_get.timestamp() if self.time_first_get else None
+        )
+        time_last_post = (
+            self.time_last_post.timestamp() if self.time_last_post else None
+        )
+        if time_first_get is None or time_last_post is None:
+            time_used = None
+            real_throughput = None
+        else:
+            time_used = time_last_post - time_first_get
+            real_throughput = self.post_count_total / time_used
         return {
             "time_limit": self.time_limit,
-            "time_first_get": (
-                self.time_first_get.timestamp() if self.time_first_get else None
-            ),
-            "time_last_post": (
-                self.time_last_post.timestamp() if self.time_last_post else None
-            ),
+            "time_first_get": time_first_get,
+            "time_last_post": time_last_post,
+            "time_used": time_used,
+            "real_throughput": real_throughput,
+            "standard_throughput": self.post_count_total / self.time_limit,
             "post_count_total": self.post_count_total,
             "post_finished_total": self.post_finished_total,
             "post_count_history": self.post_count_history,

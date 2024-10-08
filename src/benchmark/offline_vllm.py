@@ -5,6 +5,7 @@ from transformers import AutoTokenizer  # type: ignore
 from vllm import LLM, SamplingParams
 
 from src.workload.sharegpt import ShareGptDataset
+from src.workload.utils import Workload
 
 from ..rater import Rater, RaterTimeLimitExceeded, Response
 from ..workload.oasst1 import Oasst1Dataset
@@ -16,8 +17,8 @@ class OfflineVLLMClient:
     def __init__(
         self,
         model: str,
-        workload: list[list[dict[str, str]]],
-        time_limit: float,
+        workload: Workload,
+        time_limit: int,
         url: str,
         batch_size: int,
         max_tokens: int,

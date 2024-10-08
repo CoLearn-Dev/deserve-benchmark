@@ -1,6 +1,30 @@
 import json
+from typing import Any
 
-from .utils import cache
+from transformers import PreTrainedTokenizer  # type: ignore
+
+from .utils import Workload, cache, llama3_tokenizer
+
+
+class ShareGptWorkload(Workload):
+    def __init__(
+        self, raw_data: list[list[dict[str, str]]], tokenizer: PreTrainedTokenizer
+    ) -> None:
+        self.raw_data = raw_data
+        self.tokenizer = tokenizer
+
+    def get(self, offset: int, length: int) -> list[str]:
+        if offset >= len(self.raw_data):
+            return []
+        limit = min(offset + length, len(self.raw_data))
+        return [
+            self.tokenizer.apply_chat_template(
+                conversation,
+                tokenize=False,
+                add_generation_timestamp_token=False,
+            )
+            for conversation in self.raw_data[offset:limit]
+        ]
 
 
 class ShareGptDataset:
@@ -12,16 +36,18 @@ class ShareGptDataset:
             self.raw_data = json.load(f)
 
     @cache()
-    def into_workload(self) -> list[list[dict[str, str]]]:
+    def into_workload(self) -> Workload:
         workload = []
         for conversation in self.raw_data:
             messages = []
             for message in conversation["conversations"]:
                 role = "user" if message["from"] == "human" else "assistant"
                 messages.append({"content": message["value"], "role": role})
-                if role == "user":
-                    workload.append(messages.copy())
-        return workload
+            workload.append(messages)
+        return ShareGptWorkload(
+            workload,
+            llama3_tokenizer,
+        )
 
 
 if __name__ == "__main__":

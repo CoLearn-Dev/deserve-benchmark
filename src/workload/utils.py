@@ -1,4 +1,15 @@
+from abc import ABC, abstractmethod
 from typing import Any, Callable
+
+from transformers import AutoTokenizer  # type: ignore
+
+llama3_tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B-Instruct")
+
+
+class Workload(ABC):
+    @abstractmethod
+    def get(self, offset: int, length: int) -> list[str]:
+        pass
 
 
 def cache(root_dir: str = "tmp/") -> Callable[[Callable[..., Any]], Callable[..., Any]]:

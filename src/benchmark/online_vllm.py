@@ -4,22 +4,22 @@ from typing import Any
 
 import requests
 from openai import OpenAI, Stream
-from openai.types.chat import ChatCompletionChunk
+from openai.types.completion import Completion
 from transformers import AutoTokenizer  # type: ignore
+
+from src.workload.utils import Workload
 
 from ..rater import Rater, RaterTimeLimitExceeded, Response
 from ..workload.oasst1 import Oasst1Dataset
 from ..workload.sharegpt import ShareGptDataset
-
-tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B-Instruct")
 
 
 class OnlineVLLMClient:
     def __init__(
         self,
         model: str,
-        workload: list[list[dict[str, str]]],
-        time_limit: float,
+        workload: Workload,
+        time_limit: int,
         url: str,
         batch_size: int,
         max_tokens: int,
@@ -45,20 +45,17 @@ class OnlineVLLMClient:
             id = completions[0].id
             history = completions[0].history
             try:
-                chat_stream: Stream[ChatCompletionChunk] = (
-                    self.openai_client.chat.completions.create(
-                        model=self.model,
-                        messages=history,  # type: ignore
-                        max_tokens=self.max_tokens,
-                        stream=True,
-                    )
+                chat_stream: Stream[Completion] = self.openai_client.completions.create(
+                    model=self.model,
+                    prompt=history,
+                    max_tokens=self.max_tokens,
+                    stream=True,
                 )
             except Exception as e:
                 print(e)
                 raise e
             for chunk in chat_stream:
-                choice = chunk.choices[0]
-                content = choice.delta.content
+                content = chunk.choices[0].text
                 if content is None:
                     continue
                 try:

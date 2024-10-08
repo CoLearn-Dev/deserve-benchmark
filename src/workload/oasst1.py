@@ -1,8 +1,10 @@
-from typing import Any, Callable, Optional
+from typing import Optional
+
+from transformers import PreTrainedTokenizer  # type: ignore
 
 from datasets import load_dataset  # type: ignore
 
-from .utils import cache
+from .utils import Workload, cache, llama3_tokenizer
 
 
 class OasstNode:
@@ -43,12 +45,33 @@ class OasstTree:
             parent.add_child(node)
 
 
+class Oasst1Workload(Workload):
+    def __init__(
+        self, raw_data: list[list[dict[str, str]]], tokenizer: PreTrainedTokenizer
+    ) -> None:
+        self.raw_data = raw_data
+        self.tokenizer = tokenizer
+
+    def get(self, offset: int, length: int) -> list[str]:
+        if offset >= len(self.raw_data):
+            return []
+        limit = min(offset + length, len(self.raw_data))
+        return [
+            self.tokenizer.apply_chat_template(
+                conversation,
+                tokenize=False,
+                add_generation_timestamp_token=False,
+            )
+            for conversation in self.raw_data[offset:limit]
+        ]
+
+
 class Oasst1Dataset:
     def __init__(self) -> None:
         self.raw_data = load_dataset("OpenAssistant/oasst1")
 
     @cache()
-    def into_workload(self) -> list[list[dict[str, str]]]:
+    def into_workload(self) -> Workload:
         merged_data = list(self.raw_data["train"]) + list(self.raw_data["validation"])  # type: ignore
         tree = OasstTree()
         for row in merged_data:
@@ -57,7 +80,7 @@ class Oasst1Dataset:
         workload: list[list[dict[str, str]]] = []
         for root in tree.roots:
             root.traverse_for_workload([], workload)
-        return workload
+        return Oasst1Workload(workload, llama3_tokenizer)
 
 
 if __name__ == "__main__":
