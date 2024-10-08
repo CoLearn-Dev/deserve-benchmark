@@ -1,9 +1,6 @@
 import argparse
-import json
-import os
-import traceback
 from concurrent.futures import ALL_COMPLETED, ThreadPoolExecutor, wait
-from typing import Any, Generator, Optional
+from typing import Any
 
 import requests
 from openai import OpenAI, Stream
@@ -12,6 +9,7 @@ from transformers import AutoTokenizer  # type: ignore
 
 from ..rater import Rater, RaterTimeLimitExceeded, Response
 from ..workload.oasst1 import Oasst1Dataset
+from ..workload.sharegpt import ShareGptDataset
 
 tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B-Instruct")
 
@@ -86,9 +84,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model-name", type=str, default="meta-llama/Meta-Llama-3-8B-Instruct"
     )
+    parser.add_argument("--workload", type=str, default="oasst1")
     args = parser.parse_args()
 
-    workload = Oasst1Dataset().into_workload()
+    if args.workload == "oasst1":
+        workload = Oasst1Dataset().into_workload()
+    elif args.workload == "sharegpt":
+        workload = ShareGptDataset().into_workload()
+    elif args.workload.startswith("fixed-"):
+        length = int(args.workload[len("fixed-") :])
+    else:
+        raise ValueError(f"Unknown workload: {args.workload}")
     client = OnlineVLLMClient(
         model=args.model_name,
         workload=workload,

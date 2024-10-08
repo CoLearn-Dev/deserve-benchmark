@@ -4,6 +4,8 @@ from typing import Any
 from transformers import AutoTokenizer  # type: ignore
 from vllm import LLM, SamplingParams
 
+from src.workload.sharegpt import ShareGptDataset
+
 from ..rater import Rater, RaterTimeLimitExceeded, Response
 from ..workload.oasst1 import Oasst1Dataset
 
@@ -69,7 +71,15 @@ if __name__ == "__main__":
     parser.add_argument("--max-tokens", type=int, default=1024)
     parser.add_argument("--tensor-parallel-size", type=int, default=1)
     parser.add_argument("--pipeline-parallel-size", type=int, default=1)
+    parser.add_argument("--workload", type=str, default="oasst1")
     args = parser.parse_args()
+
+    if args.workload == "oasst1":
+        workload = Oasst1Dataset().into_workload()
+    elif args.workload == "sharegpt":
+        workload = ShareGptDataset().into_workload()
+    else:
+        raise ValueError(f"Unknown workload: {args.workload}")
 
     workload = Oasst1Dataset().into_workload()
     client = OfflineVLLMClient(
