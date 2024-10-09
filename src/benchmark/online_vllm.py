@@ -1,4 +1,5 @@
 import argparse
+import json
 from concurrent.futures import ALL_COMPLETED, ThreadPoolExecutor, wait
 from typing import Any
 
@@ -23,13 +24,14 @@ class OnlineVLLMClient:
         url: str,
         batch_size: int,
         max_tokens: int,
+        trace: bool,
     ):
         self.url = url
         self.batch_size = batch_size
         self.max_tokens = max_tokens
         self.network_executor = ThreadPoolExecutor(max_workers=128)
         self.vllm_executor = ThreadPoolExecutor(max_workers=128)
-        self.rater = Rater(workload=workload, time_limit=time_limit)
+        self.rater = Rater(workload=workload, time_limit=time_limit, trace=trace)
         self.model = model
         self.openai_client = OpenAI(
             api_key="EMPTY",
@@ -85,6 +87,7 @@ if __name__ == "__main__":
         "--model-name", type=str, default="meta-llama/Meta-Llama-3-8B-Instruct"
     )
     parser.add_argument("--workload", type=str, default="oasst1")
+    parser.add_argument("--trace", action="store_true", default=False)
     args = parser.parse_args()
 
     if args.workload == "oasst1":
@@ -102,6 +105,7 @@ if __name__ == "__main__":
         url=args.url,
         batch_size=args.batch_size,
         max_tokens=args.max_tokens,
+        trace=args.trace,
     )
     result = client.speedtest()
-    print(result)
+    print(json.dumps(result))

@@ -1,4 +1,5 @@
 import argparse
+import json
 from typing import Any
 
 from transformers import AutoTokenizer  # type: ignore
@@ -24,11 +25,12 @@ class OfflineVLLMClient:
         max_tokens: int,
         tensor_parallel_size: int,
         pipeline_parallel_size: int,
+        trace: bool,
     ):
         self.url = url
         self.batch_size = batch_size
         self.max_tokens = max_tokens
-        self.rater = Rater(workload=workload, time_limit=time_limit)
+        self.rater = Rater(workload=workload, time_limit=time_limit, trace=trace)
         self.llm = LLM(
             model=model,
             gpu_memory_utilization=0.95,
@@ -76,6 +78,7 @@ if __name__ == "__main__":
     parser.add_argument("--tensor-parallel-size", type=int, default=1)
     parser.add_argument("--pipeline-parallel-size", type=int, default=1)
     parser.add_argument("--workload", type=str, default="oasst1")
+    parser.add_argument("--trace", action="store_true", default=False)
     args = parser.parse_args()
 
     if args.workload == "oasst1":
@@ -95,6 +98,7 @@ if __name__ == "__main__":
         max_tokens=args.max_tokens,
         tensor_parallel_size=args.tensor_parallel_size,
         pipeline_parallel_size=args.pipeline_parallel_size,
+        trace=args.trace,
     )
     result = client.speedtest()
-    print(result)
+    print(json.dumps(result))
