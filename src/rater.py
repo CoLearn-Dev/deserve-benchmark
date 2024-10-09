@@ -27,6 +27,14 @@ class Request:
     history: str
 
 
+def count_llama_tokens(payload: str) -> int:
+    return len(llama3_tokenizer.tokenize(payload))
+
+
+def count_openai_tokens(payload: str) -> int:
+    return len(openai_tokenizer.encode(payload))
+
+
 @dataclass
 class Response:
     id: int
@@ -34,7 +42,10 @@ class Response:
     finished: bool
 
     def count_openai_tokens(self) -> int:
-        return len(openai_tokenizer.encode(self.payload))
+        return count_openai_tokens(self.payload)
+
+    def count_llama_tokens(self) -> int:
+        return count_llama_tokens(self.payload)
 
 
 class BufferedString(BaseModel):
@@ -54,6 +65,9 @@ class BufferedString(BaseModel):
         else:
             self.buffer = self.buffer + " " * (offset - len(self.buffer)) + payload
 
+    def is_empty(self) -> bool:
+        return self.buffer == ""
+
 
 class BufferedResponses(BaseModel):
     content: list[BufferedString] = []
@@ -70,6 +84,11 @@ class BufferedResponses(BaseModel):
             self.content.append(BufferedString())
         self.content[index].insert(offset, payload, time, finished)
 
+    def is_empty(self, index: int) -> bool:
+        if index >= len(self.content):
+            return True
+        return self.content[index].is_empty()
+
     def into_timestamped_responses(
         self,
     ) -> list[tuple[str, Optional[datetime.datetime]]]:
@@ -84,9 +103,11 @@ class Rater:
         self.time_first_get: Optional[datetime.datetime] = None
         self.time_last_post: Optional[datetime.datetime] = None
         self.buffered_responses = BufferedResponses()
-        self.tokens_count_history: dict[int, int] = {}
+        self.input_throughput_history: dict[int, int] = {}
+        self.output_throughput_history: dict[int, int] = {}
         self.requests_finished_history: dict[int, int] = {}
-        self.tokens_count_total = 0
+        self.input_throughput_total = 0
+        self.output_throughput_total = 0
         self.requests_finished_total = 0
         self.lock = threading.Lock()
         self.trace = trace
@@ -108,25 +129,33 @@ class Rater:
         self.time_last_post = now
         if now - self.time_first_get > datetime.timedelta(seconds=self.time_limit):
             raise RaterTimeLimitExceeded("Time limit exceeded")
-        self.buffered_responses.insert(
-            response.id,
-            -1,
-            response.payload,
-            now,
-            response.finished,
-        )
         time_delta = int((now - self.time_first_get).total_seconds())
 
         with self.lock:
-            if time_delta not in self.tokens_count_history:
-                self.tokens_count_history[time_delta] = 0
-            self.tokens_count_history[time_delta] += response.count_openai_tokens()
-            self.tokens_count_total += response.count_openai_tokens()
+            if time_delta not in self.input_throughput_history:
+                self.input_throughput_history[time_delta] = 0
+            if self.buffered_responses.is_empty(response.id):
+                tokens = count_llama_tokens(self.workload.get(response.id, 1)[0])
+                self.input_throughput_history[time_delta] += tokens
+                self.input_throughput_total += tokens
+
+            if time_delta not in self.output_throughput_history:
+                self.output_throughput_history[time_delta] = 0
+            self.output_throughput_history[time_delta] += response.count_llama_tokens()
+            self.output_throughput_total += response.count_llama_tokens()
             if time_delta not in self.requests_finished_history:
                 self.requests_finished_history[time_delta] = 0
             if response.finished:
                 self.requests_finished_history[time_delta] += 1
                 self.requests_finished_total += 1
+
+            self.buffered_responses.insert(
+                response.id,
+                -1,
+                response.payload,
+                now,
+                response.finished,
+            )
 
     def dump(self) -> dict[str, Any]:
         time_first_get = (
@@ -137,27 +166,42 @@ class Rater:
         )
         if time_first_get is None or time_last_post is None:
             time_used = None
-            real_throughput = None
+            real_input_throughput = None
+            real_output_throughput = None
         else:
             time_used = time_last_post - time_first_get
-            real_throughput = self.tokens_count_total / time_used
-        tokens_count_prefix_sum = [0] * self.time_limit
+            real_input_throughput = self.input_throughput_total / time_used
+            real_output_throughput = self.output_throughput_total / time_used
+
+        output_throughput_prefix_sum = {0: 0}
         for i in range(1, self.time_limit):
-            tokens_count_prefix_sum[i] = tokens_count_prefix_sum[
+            output_throughput_prefix_sum[i] = output_throughput_prefix_sum[
                 i - 1
-            ] + self.tokens_count_history.get(i, 0)
+            ] + self.output_throughput_history.get(i, 0)
+
+        input_throughput_prefix_sum = {0: 0}
+        for i in range(1, self.time_limit):
+            input_throughput_prefix_sum[i] = input_throughput_prefix_sum[
+                i - 1
+            ] + self.input_throughput_history.get(i, 0)
 
         result: dict[str, Any] = {
             "time_limit": self.time_limit,
             "time_first_get": time_first_get,
             "time_last_post": time_last_post,
             "time_used": time_used,
-            "real_throughput": real_throughput,
-            "standard_throughput": self.tokens_count_total / self.time_limit,
-            "tokens_count_total": self.tokens_count_total,
-            "tokens_count_prefix_sum": tokens_count_prefix_sum,
+            "real_input_throughput": real_input_throughput,
+            "real_output_throughput": real_output_throughput,
+            "standard_input_throughput": self.input_throughput_total / self.time_limit,
+            "standard_output_throughput": self.output_throughput_total
+            / self.time_limit,
+            "input_throughput_total": self.input_throughput_total,
+            "input_throughput_history": self.input_throughput_history,
+            "input_throughput_prefix_sum": input_throughput_prefix_sum,
+            "output_throughput_total": self.output_throughput_total,
+            "output_throughput_history": self.output_throughput_history,
+            "output_throughput_prefix_sum": output_throughput_prefix_sum,
             "requests_finished_total": self.requests_finished_total,
-            "tokens_count_history": self.tokens_count_history,
             "requests_finished_history": self.requests_finished_history,
         }
         if self.trace:

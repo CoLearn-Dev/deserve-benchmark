@@ -81,7 +81,9 @@ class DeServeClient:
                 char = tokenizer.decode(token)
                 try:
                     self.rater.post(
-                        Response(id=request_id, payload=char, finished=False)
+                        Response(
+                            id=request_id, payload=char, finished=(token in stop_tokens)
+                        )
                     )
                 except RaterTimeLimitExceeded:
                     events.put(None)
