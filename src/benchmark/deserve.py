@@ -83,14 +83,14 @@ class DeServeClient:
                     events.put(None)
             return "OK"
 
-        app.run(port=19000, debug=False)
+        app.run(host="0.0.0.0", port=19000, debug=False)
 
     def speedtest(self) -> dict[str, Any]:
         current = 0
         queue: Queue[int | None] = Queue()
         p = threading.Thread(target=self.flask_service, args=[queue], daemon=True)
         p.start()
-        try: 
+        try:
             while True:
                 if current >= self.batch_size:
                     value = queue.get()
