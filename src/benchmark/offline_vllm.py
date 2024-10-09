@@ -37,28 +37,31 @@ class OfflineVLLMClient:
         )
 
     def speedtest(self) -> dict[str, Any]:
-        while True:
-            requests = self.rater.get(self.batch_size)
-            if len(requests) == 0:
-                # no more requests
-                break
-            formatted_prompts = [
-                tokenizer.apply_chat_template(
-                    request.history, tokenize=False, add_generation_timestamp=True
-                )
-                for request in requests
-            ]
-            results = self.llm.generate(
-                formatted_prompts, SamplingParams(max_tokens=self.max_tokens)
-            )
-            texts = [output.outputs[0].text for output in results]
-            try:
-                for history, text in zip(requests, texts):
-                    self.rater.post(
-                        Response(id=history.id, payload=text, finished=True)
+        try:
+            while True:
+                requests = self.rater.get(self.batch_size)
+                if len(requests) == 0:
+                    # no more requests
+                    break
+                formatted_prompts = [
+                    tokenizer.apply_chat_template(
+                        request.history, tokenize=False, add_generation_timestamp=True
                     )
-            except RaterTimeLimitExceeded:
-                break
+                    for request in requests
+                ]
+                results = self.llm.generate(
+                    formatted_prompts, SamplingParams(max_tokens=self.max_tokens)
+                )
+                texts = [output.outputs[0].text for output in results]
+                try:
+                    for history, text in zip(requests, texts):
+                        self.rater.post(
+                            Response(id=history.id, payload=text, finished=True)
+                        )
+                except RaterTimeLimitExceeded:
+                    break
+        except KeyboardInterrupt:
+            pass
         return self.rater.dump()
 
 

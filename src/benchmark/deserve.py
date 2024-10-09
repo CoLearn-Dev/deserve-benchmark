@@ -90,33 +90,36 @@ class DeServeClient:
         queue: Queue[int | None] = Queue()
         p = threading.Thread(target=self.flask_service, args=[queue], daemon=True)
         p.start()
-        while True:
-            if current >= self.batch_size:
-                value = queue.get()
-                if value is None:
-                    print("get None")
+        try: 
+            while True:
+                if current >= self.batch_size:
+                    value = queue.get()
+                    if value is None:
+                        print("get None")
+                        break
+                else:
+                    current += 1
+                history = self.rater.get(1)
+                if len(history) == 0:
                     break
-            else:
-                current += 1
-            history = self.rater.get(1)
-            if len(history) == 0:
-                break
-            id = history[0].id
-            prompt = history[0].history
-            tokens = tokenizer.encode(prompt, return_tensors="pt")[0]
-            tensors = {"x": tokens}
-            metadata = {
-                "task_id": str(id) + "@" + str(uuid.uuid4()),
-                "sampling_params": {
-                    "temperature": 0.0,
-                    "top_p": 1.0,
-                    "max_total_len": 1024,
-                },
-            }
-            response = requests.post(
-                f"{self.first_worker_url}/prefill",
-                data=dumps(tensors, metadata),
-            )
+                id = history[0].id
+                prompt = history[0].history
+                tokens = tokenizer.encode(prompt, return_tensors="pt")[0]
+                tensors = {"x": tokens}
+                metadata = {
+                    "task_id": str(id) + "@" + str(uuid.uuid4()),
+                    "sampling_params": {
+                        "temperature": 0.0,
+                        "top_p": 1.0,
+                        "max_total_len": 1024,
+                    },
+                }
+                response = requests.post(
+                    f"{self.first_worker_url}/prefill",
+                    data=dumps(tensors, metadata),
+                )
+        except KeyboardInterrupt:
+            pass
         return self.rater.dump()
 
 

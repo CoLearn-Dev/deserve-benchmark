@@ -65,10 +65,13 @@ class OnlineVLLMClient:
             self.rater.post(Response(id=id, payload="", finished=True))
 
     def speedtest(self) -> dict[str, Any]:
-        futures = []
-        for _ in range(self.batch_size):
-            futures.append(self.vllm_executor.submit(self.polling))
-        wait(futures, return_when=ALL_COMPLETED)
+        try:
+            futures = []
+            for _ in range(self.batch_size):
+                futures.append(self.vllm_executor.submit(self.polling))
+            wait(futures, return_when=ALL_COMPLETED)
+        except KeyboardInterrupt:
+            pass
         return self.rater.dump()
 
 
