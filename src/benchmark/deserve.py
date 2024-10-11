@@ -19,6 +19,7 @@ from transformers import AutoTokenizer  # type: ignore
 from src.rater import Rater, RaterTimeLimitExceeded, Response
 from src.workload.oasst1 import Oasst1Dataset
 from src.workload.sharegpt import ShareGptDataset
+from src.workload.static import StaticWorkload
 from src.workload.utils import Workload
 
 tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B-Instruct")
@@ -159,6 +160,7 @@ if __name__ == "__main__":
         workload = ShareGptDataset().into_workload()
     elif args.workload.startswith("fixed-"):
         length = int(args.workload[len("fixed-") :])
+        workload = StaticWorkload(length)
     else:
         raise ValueError(f"Unknown workload: {args.workload}")
     client = DeServeClient(
