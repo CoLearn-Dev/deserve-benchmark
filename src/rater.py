@@ -199,6 +199,7 @@ class Rater:
 
         result: dict[str, Any] = {
             "time_limit": self.time_limit,
+            "time_warmup": self.warmup,
             "time_first_get": time_first_get,
             "time_last_post": time_last_post,
             "time_used": time_used,
