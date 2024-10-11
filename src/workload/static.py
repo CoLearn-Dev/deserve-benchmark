@@ -6,4 +6,4 @@ class StaticWorkload(Workload):
         self.length = length
 
     def get(self, offset: int, length: int) -> list[str]:
-        return ["a" * self.length] * length
+        return ["a" * 8 * self.length] * length
