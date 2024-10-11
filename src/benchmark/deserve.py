@@ -115,7 +115,7 @@ class DeServeClient:
                 "sampling_params": {
                     "temperature": 0.0,
                     "top_p": 1.0,
-                    "max_total_len": 1024,
+                    "max_total_len": self.max_tokens,
                 },
             }
             response = requests.post(
