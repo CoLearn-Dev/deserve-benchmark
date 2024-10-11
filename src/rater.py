@@ -96,7 +96,9 @@ class BufferedResponses(BaseModel):
 
 
 class Rater:
-    def __init__(self, workload: Workload, time_limit: int, trace: bool):
+    def __init__(
+        self, workload: Workload, time_limit: int, trace: bool, warmup: int = 0
+    ):
         self.workload = workload
         self.ptr = 0
         self.time_limit = time_limit
@@ -111,6 +113,8 @@ class Rater:
         self.requests_finished_total = 0
         self.lock = threading.Lock()
         self.trace = trace
+        assert warmup >= 0 and warmup < time_limit
+        self.warmup = warmup
 
     def get(self, size: int) -> list[Request]:
         if self.time_first_get is None:
@@ -185,6 +189,14 @@ class Rater:
                 i - 1
             ] + self.input_throughput_history.get(i, 0)
 
+        warmup_input_throughput = 0.0
+        warmup_output_throughput = 0.0
+        for i in range(self.warmup, self.time_limit):
+            warmup_input_throughput += self.input_throughput_history.get(i, 0)
+            warmup_output_throughput += self.output_throughput_history.get(i, 0)
+        warmup_input_throughput /= self.time_limit - self.warmup
+        warmup_output_throughput /= self.time_limit - self.warmup
+
         result: dict[str, Any] = {
             "time_limit": self.time_limit,
             "time_first_get": time_first_get,
@@ -195,6 +207,8 @@ class Rater:
             "standard_input_throughput": self.input_throughput_total / self.time_limit,
             "standard_output_throughput": self.output_throughput_total
             / self.time_limit,
+            "warmup_input_throughput": warmup_input_throughput,
+            "warmup_output_throughput": warmup_output_throughput,
             "input_throughput_total": self.input_throughput_total,
             "input_throughput_history": self.input_throughput_history,
             "input_throughput_prefix_sum": input_throughput_prefix_sum,

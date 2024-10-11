@@ -56,6 +56,7 @@ class DeServeClient:
         batch_size: int,
         max_tokens: int,
         trace: bool,
+        warmup: int,
     ):
         self.first_worker_url = first_worker_url
         self.batch_size = batch_size
@@ -63,7 +64,9 @@ class DeServeClient:
         self.network_executor = ThreadPoolExecutor(max_workers=128)
         self.deserve_executor = ThreadPoolExecutor(max_workers=128)
         self.time_limit = time_limit
-        self.rater = Rater(workload=workload, time_limit=time_limit, trace=trace)
+        self.rater = Rater(
+            workload=workload, time_limit=time_limit, trace=trace, warmup=warmup
+        )
 
     def flask_service(self, events: Queue[int | None]) -> None:  # type: ignore
         app = Flask(__name__)
@@ -151,6 +154,7 @@ if __name__ == "__main__":
     parser.add_argument("--max-tokens", type=int, default=1024)
     parser.add_argument("--workload", type=str, default="oasst1")
     parser.add_argument("--first-worker-url", type=str, default="http://localhost:8080")
+    parser.add_argument("--warmup", type=int, default=0)
     parser.add_argument("--trace", action="store_true", default=False)
     args = parser.parse_args()
 
@@ -170,5 +174,6 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
         max_tokens=args.max_tokens,
         trace=args.trace,
+        warmup=args.warmup,
     )
     print(json.dumps(client.speedtest()))
