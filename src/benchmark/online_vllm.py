@@ -25,13 +25,16 @@ class OnlineVLLMClient:
         batch_size: int,
         max_tokens: int,
         trace: bool,
+        warmup: int,
     ):
         self.url = url
         self.batch_size = batch_size
         self.max_tokens = max_tokens
         self.network_executor = ThreadPoolExecutor(max_workers=128)
         self.vllm_executor = ThreadPoolExecutor(max_workers=128)
-        self.rater = Rater(workload=workload, time_limit=time_limit, trace=trace)
+        self.rater = Rater(
+            workload=workload, time_limit=time_limit, trace=trace, warmup=warmup
+        )
         self.model = model
         self.openai_client = OpenAI(
             api_key="EMPTY",
@@ -88,6 +91,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--workload", type=str, default="oasst1")
     parser.add_argument("--trace", action="store_true", default=False)
+    parser.add_argument("--warmup", type=int, default=0)
     args = parser.parse_args()
 
     if args.workload == "oasst1":
@@ -106,6 +110,7 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
         max_tokens=args.max_tokens,
         trace=args.trace,
+        warmup=args.warmup,
     )
     result = client.speedtest()
     print(json.dumps(result))
