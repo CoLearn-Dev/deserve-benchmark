@@ -10,6 +10,7 @@ from openai import OpenAI, Stream
 from openai.types.completion import Completion
 from transformers import AutoTokenizer  # type: ignore
 
+from src.workload.static import StaticWorkload
 from src.workload.utils import Workload
 
 from ..rater import Rater, RaterTimeLimitExceeded, Response
@@ -101,7 +102,7 @@ if __name__ == "__main__":
     parser.add_argument("--max-tokens", type=int, default=1024)
     parser.add_argument("--url", type=str, default="http://localhost:8000/v1")
     parser.add_argument(
-        "--model-name", type=str, default="meta-llama/Meta-Llama-3-8B-Instruct"
+        "--model-name", type=str, default="meta-llama/Meta-Llama-3-70B-Instruct"
     )
     parser.add_argument("--workload", type=str, default="oasst1")
     parser.add_argument("--trace", action="store_true", default=False)
@@ -114,6 +115,7 @@ if __name__ == "__main__":
         workload = ShareGptDataset().into_workload()
     elif args.workload.startswith("fixed-"):
         length = int(args.workload[len("fixed-") :])
+        workload = StaticWorkload(length)
     else:
         raise ValueError(f"Unknown workload: {args.workload}")
     client = OnlineVLLMClient(
