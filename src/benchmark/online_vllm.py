@@ -1,5 +1,7 @@
 import argparse
 import json
+import threading
+import time
 from concurrent.futures import ALL_COMPLETED, ThreadPoolExecutor, wait
 from typing import Any
 
@@ -30,6 +32,7 @@ class OnlineVLLMClient:
         self.url = url
         self.batch_size = batch_size
         self.max_tokens = max_tokens
+        self.time_limit = time_limit
         self.network_executor = ThreadPoolExecutor(max_workers=128)
         self.vllm_executor = ThreadPoolExecutor(max_workers=128)
         self.rater = Rater(
@@ -69,12 +72,23 @@ class OnlineVLLMClient:
                     return
             self.rater.post(Response(id=id, payload="", finished=True))
 
-    def speedtest(self) -> dict[str, Any]:
+    def routine(self) -> None:
         try:
             futures = []
             for _ in range(self.batch_size):
                 futures.append(self.vllm_executor.submit(self.polling))
             wait(futures, return_when=ALL_COMPLETED)
+        except KeyboardInterrupt:
+            pass
+
+    def speedtest(self) -> dict[str, Any]:
+        routine_thread = threading.Thread(target=self.routine, daemon=True)
+        routine_thread.start()
+        try:
+            for _ in range(self.time_limit):
+                time.sleep(1)
+                if not routine_thread.is_alive():
+                    break
         except KeyboardInterrupt:
             pass
         return self.rater.dump()
