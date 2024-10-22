@@ -3,6 +3,7 @@ import json
 import logging
 import multiprocessing
 import pickle
+import random
 import threading
 import time
 import uuid
@@ -67,6 +68,7 @@ class DeServeClient:
         self.rater = Rater(
             workload=workload, time_limit=time_limit, trace=trace, warmup=warmup
         )
+        self.variance = max_tokens // 8
 
     def flask_service(self, events: Queue[int | None]) -> None:  # type: ignore
         app = Flask(__name__)
@@ -118,7 +120,8 @@ class DeServeClient:
                 "sampling_params": {
                     "temperature": 0.0,
                     "top_p": 1.0,
-                    "max_new_tokens": self.max_tokens,
+                    "max_new_tokens": self.max_tokens
+                    + random.randint(-self.variance, self.variance),
                 },
             }
             response = requests.post(
