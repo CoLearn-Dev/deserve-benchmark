@@ -116,8 +116,8 @@ if __name__ == "__main__":
         workload = Oasst1Dataset().into_workload()
     elif args.workload == "sharegpt":
         workload = ShareGptDataset().into_workload()
-    elif args.workload.startswith("fixed-"):
-        length = int(args.workload[len("fixed-") :])
+    elif args.workload.startswith("fixed"):
+        length = int(args.workload[len("fixed") :])
         workload = StaticWorkload(length)
     else:
         raise ValueError(f"Unknown workload: {args.workload}")
