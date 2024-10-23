@@ -1,5 +1,6 @@
 import argparse
 import json
+import random
 import threading
 import time
 from concurrent.futures import ALL_COMPLETED, ThreadPoolExecutor, wait
@@ -44,6 +45,7 @@ class OnlineVLLMClient:
             api_key="EMPTY",
             base_url=self.url,
         )
+        self.variance = max_tokens // 8
 
     def polling(self) -> None:
         while True:
@@ -57,7 +59,8 @@ class OnlineVLLMClient:
                 chat_stream: Stream[Completion] = self.openai_client.completions.create(
                     model=self.model,
                     prompt=history,
-                    max_tokens=self.max_tokens,
+                    max_tokens=self.max_tokens
+                    + random.randint(-self.variance, self.variance),
                     stream=True,
                 )
             except Exception as e:
