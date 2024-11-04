@@ -156,7 +156,7 @@ class DeServeClient:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--time-limit", type=int, default=60)
+    parser.add_argument("--time-limit", type=int, default=-1)
     parser.add_argument("--batch-size", type=int, default=150)
     parser.add_argument("--max-tokens", type=int, default=1024)
     parser.add_argument("--workload", type=str, default="oasst1")
