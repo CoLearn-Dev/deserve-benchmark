@@ -11,6 +11,10 @@ class Workload(ABC):
     def get(self, offset: int, length: int) -> list[str]:
         pass
 
+    @abstractmethod
+    def size(self) -> int:
+        pass
+
 
 def cache(root_dir: str = "tmp/") -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """

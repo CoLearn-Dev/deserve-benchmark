@@ -65,6 +65,9 @@ class Oasst1Workload(Workload):
             for conversation in self.raw_data[offset:limit]
         ]
 
+    def size(self) -> int:
+        return len(self.raw_data)
+
 
 class Oasst1Dataset:
     def __init__(self) -> None:

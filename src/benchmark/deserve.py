@@ -141,10 +141,14 @@ class DeServeClient:
         polling_thread.start()
 
         try:
-            for _ in range(self.time_limit):
-                time.sleep(1)
-                if not polling_thread.is_alive():
-                    break
+            if self.time_limit > 0:
+                for _ in range(self.time_limit):
+                    time.sleep(1)
+                    if not polling_thread.is_alive():
+                        break
+            else:
+                while self.rater.requests_finished_total < self.rater.workload.size():
+                    time.sleep(1)
         except KeyboardInterrupt:
             pass
         return self.rater.dump()
@@ -166,8 +170,9 @@ if __name__ == "__main__":
     elif args.workload == "sharegpt":
         workload = ShareGptDataset().into_workload()
     elif args.workload.startswith("fixed"):
-        length = int(args.workload[len("fixed") :])
-        workload = StaticWorkload(length)
+        raw = args.workload[len("fixed") :]
+        size, length, variance = map(int, raw.split(":"))
+        workload = StaticWorkload(size, length, variance)
     else:
         raise ValueError(f"Unknown workload: {args.workload}")
     client = DeServeClient(

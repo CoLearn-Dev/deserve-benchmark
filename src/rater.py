@@ -1,4 +1,5 @@
 import datetime
+import math
 import threading
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -113,7 +114,7 @@ class Rater:
         self.requests_finished_total = 0
         self.lock = threading.Lock()
         self.trace = trace
-        assert warmup >= 0 and warmup < time_limit
+        assert (warmup >= 0 and warmup < time_limit) or time_limit < 0
         self.warmup = warmup
 
     def get(self, size: int) -> list[Request]:
@@ -131,7 +132,9 @@ class Rater:
             raise RaterRuntimeError("First get must be called before post")
         now = datetime.datetime.now()
         self.time_last_post = now
-        if now - self.time_first_get > datetime.timedelta(seconds=self.time_limit):
+        if self.time_limit > 0 and now - self.time_first_get > datetime.timedelta(
+            seconds=self.time_limit
+        ):
             raise RaterTimeLimitExceeded("Time limit exceeded")
         time_delta = int((now - self.time_first_get).total_seconds())
 
@@ -168,34 +171,37 @@ class Rater:
         time_last_post = (
             self.time_last_post.timestamp() if self.time_last_post else None
         )
+        output_throughput_prefix_sum = {0: 0}
+        input_throughput_prefix_sum = {0: 0}
+        warmup_input_throughput = 0.0
+        warmup_output_throughput = 0.0
+
         if time_first_get is None or time_last_post is None:
             time_used = None
             real_input_throughput = None
             real_output_throughput = None
         else:
             time_used = time_last_post - time_first_get
+            time_used_int = math.ceil(time_used)
             real_input_throughput = self.input_throughput_total / time_used
             real_output_throughput = self.output_throughput_total / time_used
 
-        output_throughput_prefix_sum = {0: 0}
-        for i in range(1, self.time_limit):
-            output_throughput_prefix_sum[i] = output_throughput_prefix_sum[
-                i - 1
-            ] + self.output_throughput_history.get(i, 0)
+            for i in range(1, time_used_int):
+                output_throughput_prefix_sum[i] = output_throughput_prefix_sum[
+                    i - 1
+                ] + self.output_throughput_history.get(i, 0)
 
-        input_throughput_prefix_sum = {0: 0}
-        for i in range(1, self.time_limit):
-            input_throughput_prefix_sum[i] = input_throughput_prefix_sum[
-                i - 1
-            ] + self.input_throughput_history.get(i, 0)
+            for i in range(1, time_used_int):
+                input_throughput_prefix_sum[i] = input_throughput_prefix_sum[
+                    i - 1
+                ] + self.input_throughput_history.get(i, 0)
 
-        warmup_input_throughput = 0.0
-        warmup_output_throughput = 0.0
-        for i in range(self.warmup, self.time_limit):
-            warmup_input_throughput += self.input_throughput_history.get(i, 0)
-            warmup_output_throughput += self.output_throughput_history.get(i, 0)
-        warmup_input_throughput /= self.time_limit - self.warmup
-        warmup_output_throughput /= self.time_limit - self.warmup
+            for i in range(self.warmup, time_used_int):
+                warmup_input_throughput += self.input_throughput_history.get(i, 0)
+                warmup_output_throughput += self.output_throughput_history.get(i, 0)
+            if time_used > self.warmup:
+                warmup_input_throughput /= time_used - self.warmup
+                warmup_output_throughput /= time_used - self.warmup
 
         result: dict[str, Any] = {
             "time_limit": self.time_limit,

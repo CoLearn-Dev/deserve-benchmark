@@ -26,6 +26,9 @@ class ShareGptWorkload(Workload):
             for conversation in self.raw_data[offset:limit]
         ]
 
+    def size(self) -> int:
+        return len(self.raw_data)
+
 
 class ShareGptDataset:
     def __init__(self) -> None:
