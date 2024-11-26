@@ -42,9 +42,7 @@ def dumps(tensors: dict[str, torch.Tensor], metadata: dict[str, Any]) -> bytes:
             sharp_tensors[k] = v
     tensors_bytes = save(sharp_tensors)
     return (
-        len(metadata_bytes).to_bytes(4, byteorder="big")
-        + metadata_bytes
-        + tensors_bytes
+        len(tensors_bytes).to_bytes(4, byteorder="big") + tensors_bytes + metadata_bytes
     )
 
 
@@ -58,6 +56,7 @@ class DeServeClient:
         max_tokens: int,
         trace: bool,
         warmup: int,
+        variance: int,
     ):
         self.first_worker_url = first_worker_url
         self.batch_size = batch_size
@@ -68,7 +67,7 @@ class DeServeClient:
         self.rater = Rater(
             workload=workload, time_limit=time_limit, trace=trace, warmup=warmup
         )
-        self.variance = max_tokens // 8
+        self.variance = variance
 
     def flask_service(self, events: Queue[int | None]) -> None:  # type: ignore
         app = Flask(__name__)
@@ -163,6 +162,7 @@ if __name__ == "__main__":
     parser.add_argument("--first-worker-url", type=str, default="http://localhost:8080")
     parser.add_argument("--warmup", type=int, default=0)
     parser.add_argument("--trace", action="store_true", default=False)
+    parser.add_argument("--variance", type=int, default=0)
     args = parser.parse_args()
 
     if args.workload == "oasst1":
@@ -183,5 +183,6 @@ if __name__ == "__main__":
         max_tokens=args.max_tokens,
         trace=args.trace,
         warmup=args.warmup,
+        variance=args.variance,
     )
     print(json.dumps(client.speedtest()))

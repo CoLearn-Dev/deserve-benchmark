@@ -30,6 +30,7 @@ class OnlineVLLMClient:
         max_tokens: int,
         trace: bool,
         warmup: int,
+        variance: int,
     ):
         self.url = url
         self.batch_size = batch_size
@@ -45,7 +46,7 @@ class OnlineVLLMClient:
             api_key="EMPTY",
             base_url=self.url,
         )
-        self.variance = max_tokens // 8
+        self.variance = variance
 
     def polling(self) -> None:
         while True:
@@ -61,6 +62,7 @@ class OnlineVLLMClient:
                     prompt=history,
                     max_tokens=self.max_tokens
                     + random.randint(-self.variance, self.variance),
+                    temperature=0,
                     stream=True,
                 )
             except Exception as e:
@@ -89,10 +91,13 @@ class OnlineVLLMClient:
         routine_thread = threading.Thread(target=self.routine, daemon=True)
         routine_thread.start()
         try:
-            for _ in range(self.time_limit):
-                time.sleep(1)
-                if not routine_thread.is_alive():
-                    break
+            if self.time_limit != -1:
+                for _ in range(self.time_limit):
+                    time.sleep(1)
+                    if not routine_thread.is_alive():
+                        break
+            else:
+                routine_thread.join()
         except KeyboardInterrupt:
             pass
         return self.rater.dump()
@@ -100,7 +105,7 @@ class OnlineVLLMClient:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--time-limit", type=int, default=60)
+    parser.add_argument("--time-limit", type=int, default=-1)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--max-tokens", type=int, default=1024)
     parser.add_argument("--url", type=str, default="http://localhost:8000/v1")
@@ -110,6 +115,7 @@ if __name__ == "__main__":
     parser.add_argument("--workload", type=str, default="oasst1")
     parser.add_argument("--trace", action="store_true", default=False)
     parser.add_argument("--warmup", type=int, default=0)
+    parser.add_argument("--variance", type=int, default=0)
     args = parser.parse_args()
 
     if args.workload == "oasst1":
@@ -131,6 +137,7 @@ if __name__ == "__main__":
         max_tokens=args.max_tokens,
         trace=args.trace,
         warmup=args.warmup,
+        variance=args.variance,
     )
     result = client.speedtest()
     print(json.dumps(result))
